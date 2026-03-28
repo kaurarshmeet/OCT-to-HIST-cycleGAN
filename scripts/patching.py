@@ -72,7 +72,7 @@ def extract_sample_id(filename: str):
     Extract sample number from filename.
     e.g. 'silver_3_oct.tif' -> '3'
     """
-    match = re.search(r'silver_(\d+)_', filename)
+    match = re.search(r'_(\d+)_', filename)
     if match:
         return match.group(1)
     return None
