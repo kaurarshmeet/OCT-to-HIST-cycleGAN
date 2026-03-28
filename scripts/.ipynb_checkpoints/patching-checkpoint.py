@@ -109,8 +109,10 @@ def process_pairs(inputA_dir, inputB_dir, output_dir, augment=False):
     inputB_dir = Path(inputB_dir)
     output_dir = Path(output_dir)
 
-    out_A = output_dir / "trainA"
-    out_B = output_dir / "trainB"
+    output_name_A = "trainA" if augment == True else "testA"
+    output_name_B = "trainB" if augment == True else "testB"
+    out_A = output_dir / output_name_A
+    out_B = output_dir / output_name_B
     out_A.mkdir(parents=True, exist_ok=True)
     out_B.mkdir(parents=True, exist_ok=True)
 
@@ -128,7 +130,7 @@ def process_pairs(inputA_dir, inputB_dir, output_dir, augment=False):
             print(f"Could not extract sample ID from {oct_file.name}, skipping.")
             continue
 
-        he_file = inputB_dir / f"silver_{sample_id}_he.tif"
+        he_file = inputB_dir / f"*_{sample_id}_he.tif"
         if not he_file.exists():
             print(f"WARNING: No matching H&E file found for {oct_file.name}, skipping.")
             continue
@@ -155,7 +157,7 @@ def process_pairs(inputA_dir, inputB_dir, output_dir, augment=False):
         # Build patch_pairs.json from original patches only
         for (_, row, col) in oct_patches:
             patch_name = f"silver_{sample_id}_patch_{row}_{col}.jpg"
-            patch_pairs[str(Path("trainA") / patch_name)] = str(Path("trainB") / patch_name)
+            patch_pairs[str(Path(output_name_A) / patch_name)] = str(Path(output_name_B) / patch_name)
 
         # Save patches independently per domain
         save_patches(oct_patches, out_A, sample_id, augment)
