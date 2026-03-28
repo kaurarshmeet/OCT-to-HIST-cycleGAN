@@ -1,5 +1,5 @@
 """
-patch.py
+patching.py
 Authors: Arshmeet Kaur
 Description:
     Extracts non-overlapping 256x256 patches from paired OCT and H&E .tif images.
@@ -16,11 +16,11 @@ Description:
     training-only and excluded from patch_pairs.json.
 
 Usage:
-    # Without augmentation
-    python patch.py --trainA /path/to/trainA --trainB /path/to/trainB --output /path/to/output
+    # Without augmentation (e.g. test set)
+    python patching.py --inputA /path/to/testA --inputB /path/to/testB --output /path/to/output
 
-    # With augmentation
-    python patch.py --trainA /path/to/trainA --trainB /path/to/trainB --output /path/to/output --augment
+    # With augmentation (e.g. train set)
+    python patching.py --inputA /path/to/trainA --inputB /path/to/trainB --output /path/to/output --augment
 """
 
 import argparse
@@ -80,27 +80,22 @@ def save_patches(patches, out_dir, sample_id, augment=False):
     """
     Save patches to output directory.
     If augment=True, also save all geometric augmentations independently.
-    Returns count of saved patches.
     """
-    count = 0
     for patch, row, col in patches:
         patch_name = f"silver_{sample_id}_patch_{row}_{col}.jpg"
         Image.fromarray(patch).save(out_dir / patch_name)
-        count += 1
 
         if augment:
             for aug_label, aug_fn in AUGMENTATIONS:
                 aug_name = f"silver_{sample_id}_patch_{row}_{col}_{aug_label}.jpg"
                 Image.fromarray(aug_fn(patch)).save(out_dir / aug_name)
 
-    return count
-
 
 # ---------------------------------------------------------------------------
 # Main processing
 # ---------------------------------------------------------------------------
 
-def process_pairs(trainA_dir, trainB_dir, output_dir, augment=False):
+def process_pairs(inputA_dir, inputB_dir, output_dir, augment=False):
     """
     For each paired OCT/H&E image:
         - Extract patches from both
@@ -108,8 +103,8 @@ def process_pairs(trainA_dir, trainB_dir, output_dir, augment=False):
         - Save patches (+ augmentations if requested) independently per domain
         - Build patch_pairs.json from original patches only (for stitching)
     """
-    trainA_dir = Path(trainA_dir)
-    trainB_dir = Path(trainB_dir)
+    inputA_dir = Path(inputA_dir)
+    inputB_dir = Path(inputB_dir)
     output_dir = Path(output_dir)
 
     out_A = output_dir / "trainA"
@@ -117,13 +112,13 @@ def process_pairs(trainA_dir, trainB_dir, output_dir, augment=False):
     out_A.mkdir(parents=True, exist_ok=True)
     out_B.mkdir(parents=True, exist_ok=True)
 
-    oct_files = sorted(trainA_dir.glob("*.tif"))
+    oct_files = sorted(inputA_dir.glob("*.tif"))
     if not oct_files:
-        print("No .tif files found in trainA directory!")
+        print("No .tif files found in inputA directory!")
         return
 
-    patch_pairs     = {}
-    total_original  = 0
+    patch_pairs    = {}
+    total_original = 0
 
     for oct_file in oct_files:
         sample_id = extract_sample_id(oct_file.name)
@@ -131,7 +126,7 @@ def process_pairs(trainA_dir, trainB_dir, output_dir, augment=False):
             print(f"Could not extract sample ID from {oct_file.name}, skipping.")
             continue
 
-        he_file = trainB_dir / f"silver_{sample_id}_he.tif"
+        he_file = inputB_dir / f"silver_{sample_id}_he.tif"
         if not he_file.exists():
             print(f"WARNING: No matching H&E file found for {oct_file.name}, skipping.")
             continue
@@ -160,7 +155,7 @@ def process_pairs(trainA_dir, trainB_dir, output_dir, augment=False):
             patch_name = f"silver_{sample_id}_patch_{row}_{col}.jpg"
             patch_pairs[str(Path("trainA") / patch_name)] = str(Path("trainB") / patch_name)
 
-        # Save patches independently per domain (+ augmentations if requested)
+        # Save patches independently per domain
         save_patches(oct_patches, out_A, sample_id, augment)
         save_patches(he_patches,  out_B, sample_id, augment)
 
@@ -177,10 +172,10 @@ def process_pairs(trainA_dir, trainB_dir, output_dir, augment=False):
     n_aug = len(AUGMENTATIONS)
     print(f"\n{'='*50}")
     print(f"Done!")
-    print(f"  Original patch pairs:       {total_original}")
+    print(f"  Original patch pairs:           {total_original}")
     if augment:
         print(f"  Augmented patches (per domain): {total_original * n_aug}")
-        print(f"  Total patches per domain:   {total_original * (1 + n_aug)}")
+        print(f"  Total patches per domain:       {total_original * (1 + n_aug)}")
     print(f"  patch_pairs.json saved to {pairs_path}")
     print(f"  (original patches only — for stitching)")
     print(f"{'='*50}")
@@ -192,21 +187,21 @@ def process_pairs(trainA_dir, trainB_dir, output_dir, augment=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract paired OCT/H&E patches for CycleGAN training.")
-    parser.add_argument("--trainA",  type=str, required=True, help="Path to OCT .tif files (trainA)")
-    parser.add_argument("--trainB",  type=str, required=True, help="Path to H&E .tif files (trainB)")
-    parser.add_argument("--output",  type=str, required=True, help="Path to save output patches")
-    parser.add_argument("--augment", action="store_true",     help="Apply geometric augmentation independently per domain")
+    parser.add_argument("--inputA", type=str, required=True, help="Path to OCT .tif files")
+    parser.add_argument("--inputB", type=str, required=True, help="Path to H&E .tif files")
+    parser.add_argument("--output", type=str, required=True, help="Path to save output patches")
+    parser.add_argument("--augment", action="store_true",    help="Apply geometric augmentation independently per domain")
     args = parser.parse_args()
 
-    print(f"Input OCT dir:  {args.trainA}")
-    print(f"Input H&E dir:  {args.trainB}")
+    print(f"Input OCT dir:  {args.inputA}")
+    print(f"Input H&E dir:  {args.inputB}")
     print(f"Output dir:     {args.output}")
     print(f"Patch size:     {PATCH_SIZE}x{PATCH_SIZE}")
     print(f"Augmentation:   {'ON' if args.augment else 'OFF'}\n")
 
     process_pairs(
-        trainA_dir=args.trainA,
-        trainB_dir=args.trainB,
+        inputA_dir=args.inputA,
+        inputB_dir=args.inputB,
         output_dir=args.output,
         augment=args.augment
     )
